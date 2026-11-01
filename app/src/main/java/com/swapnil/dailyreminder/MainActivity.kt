@@ -1,6 +1,7 @@
 package com.swapnil.dailyreminder
 
 import android.Manifest
+import android.app.AlarmManager
 import android.app.NotificationManager
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -42,6 +43,8 @@ class MainActivity : ComponentActivity() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notifOk = nm.areNotificationsEnabled()
         val fsOk = Build.VERSION.SDK_INT < 34 || nm.canUseFullScreenIntent()
+        val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val exactOk = Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
         val sp = getSharedPreferences("setup", Context.MODE_PRIVATE)
         val firstTime = !sp.getBoolean("shown", false)
         val pkg = Uri.parse("package:$packageName")
@@ -49,7 +52,7 @@ class MainActivity : ComponentActivity() {
             AppTheme {
                 App()
                 var report by remember { mutableStateOf(last) }
-                var setup by remember { mutableStateOf(last == null && (firstTime || !notifOk || !fsOk)) }
+                var setup by remember { mutableStateOf(last == null && (firstTime || !notifOk || !fsOk || !exactOk)) }
                 val r = report
                 if (r != null) {
                     AlertDialog(
@@ -72,6 +75,11 @@ class MainActivity : ComponentActivity() {
                         text = {
                             Column(Modifier.verticalScroll(rememberScrollState())) {
                                 Text("To wake the screen and show the alarm when the phone is locked, please allow these:")
+                                if (Build.VERSION.SDK_INT >= 31 && !exactOk) {
+                                    OutlinedButton(onClick = {
+                                        startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, pkg))
+                                    }) { Text("0. Allow alarms and reminders (needed)") }
+                                }
                                 OutlinedButton(onClick = {
                                     startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
                                         .putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
