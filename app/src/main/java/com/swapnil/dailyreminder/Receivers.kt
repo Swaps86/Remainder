@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
 import android.media.ToneGenerator
+import android.os.PowerManager
 
 // "Beep Beep" ... pause ... "Beep Beep"  (two times)
 object Beeper {
@@ -29,6 +30,7 @@ object Beeper {
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, i: Intent) {
         try {
+            wake(ctx)
             Store.init(ctx)
             val code = i.getIntExtra("code", 0)
             val title = i.getStringExtra("title") ?: "Reminder"
@@ -36,6 +38,11 @@ class AlarmReceiver : BroadcastReceiver() {
             try { notify(ctx, code, title, msg) } catch (e: Throwable) {
                 CrashLog.save(ctx, "NOTIFY ERROR:\n" + android.util.Log.getStackTraceString(e))
             }
+            try {
+                ctx.startActivity(Intent(ctx, AlarmActivity::class.java)
+                    .putExtra("code", code).putExtra("title", title).putExtra("msg", msg)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            } catch (e: Throwable) { }
             val pending = goAsync()
             Thread {
                 try { Beeper.pattern() } finally { pending.finish() }
@@ -46,17 +53,30 @@ class AlarmReceiver : BroadcastReceiver() {
         }
     }
 
+    @Suppress("DEPRECATION")
+    private fun wake(ctx: Context) {
+        try {
+            val pm = ctx.getSystemService(Context.POWER_SERVICE) as PowerManager
+            val wl = pm.newWakeLock(
+                PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or
+                    PowerManager.ON_AFTER_RELEASE, "dailyreminder:alarm")
+            wl.acquire(20000)
+        } catch (e: Throwable) { }
+    }
+
     private fun notify(ctx: Context, code: Int, title: String, msg: String) {
         val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val ch = NotificationChannel("alarm", "Alarms", NotificationManager.IMPORTANCE_HIGH)
+        val ch = NotificationChannel("alarm2", "Alarms", NotificationManager.IMPORTANCE_HIGH)
         ch.setSound(null, null)
+        ch.lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        ch.enableVibration(true)
         nm.createNotificationChannel(ch)
         val open = Intent(ctx, AlarmActivity::class.java)
             .putExtra("code", code).putExtra("title", title).putExtra("msg", msg)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val pi = PendingIntent.getActivity(ctx, code, open,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        val n = Notification.Builder(ctx, "alarm")
+        val n = Notification.Builder(ctx, "alarm2")
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
             .setContentTitle(title).setContentText(msg)
             .setCategory(Notification.CATEGORY_ALARM)
