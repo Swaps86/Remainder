@@ -45,6 +45,7 @@ class MainActivity : ComponentActivity() {
         val fsOk = Build.VERSION.SDK_INT < 34 || nm.canUseFullScreenIntent()
         val am = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val exactOk = Build.VERSION.SDK_INT < 31 || am.canScheduleExactAlarms()
+        val overlayOk = Settings.canDrawOverlays(this)
         val sp = getSharedPreferences("setup", Context.MODE_PRIVATE)
         val firstTime = !sp.getBoolean("shown", false)
         val pkg = Uri.parse("package:$packageName")
@@ -52,7 +53,7 @@ class MainActivity : ComponentActivity() {
             AppTheme {
                 App()
                 var report by remember { mutableStateOf(last) }
-                var setup by remember { mutableStateOf(last == null && (firstTime || !notifOk || !fsOk || !exactOk)) }
+                var setup by remember { mutableStateOf(last == null && (firstTime || !notifOk || !fsOk || !exactOk || !overlayOk)) }
                 val r = report
                 if (r != null) {
                     AlertDialog(
@@ -89,6 +90,9 @@ class MainActivity : ComponentActivity() {
                                         startActivity(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, pkg))
                                     }) { Text("2. Allow full-screen alarms" + if (fsOk) " (done)" else "") }
                                 }
+                                OutlinedButton(onClick = {
+                                    startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, pkg))
+                                }) { Text("Allow Display over other apps" + if (overlayOk) " (done)" else " (needed)") }
                                 OutlinedButton(onClick = {
                                     startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg))
                                 }) { Text("3. Battery: choose Unrestricted") }

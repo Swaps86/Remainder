@@ -29,7 +29,7 @@ class AlarmActivity : ComponentActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private val loop = object : Runnable {
         override fun run() {
-            Thread { Beeper.pattern() }.start()
+            if (!AlarmService.running) Thread { Beeper.pattern() }.start()
             handler.postDelayed(this, 8000)
         }
     }
@@ -63,12 +63,13 @@ class AlarmActivity : ComponentActivity() {
                 Text("Beep Beep", color = Color(0xFFB9C6D8), fontSize = 13.sp)
                 Column(Modifier.height(48.dp)) {}
                 Button(
-                    onClick = { nm.cancel(code); finish() },
+                    onClick = { AlarmService.stop(this@AlarmActivity); nm.cancel(code); finish() },
                     modifier = Modifier.fillMaxWidth().height(56.dp)
                 ) { Text("Done", fontSize = 18.sp) }
                 Column(Modifier.height(12.dp)) {}
                 OutlinedButton(
                     onClick = {
+                        AlarmService.stop(this@AlarmActivity)
                         nm.cancel(code)
                         Scheduler.snooze(this@AlarmActivity, title, msg, 5)
                         finish()

@@ -35,18 +35,26 @@ class AlarmReceiver : BroadcastReceiver() {
             val code = i.getIntExtra("code", 0)
             val title = i.getStringExtra("title") ?: "Reminder"
             val msg = i.getStringExtra("msg") ?: ""
-            try { notify(ctx, code, title, msg) } catch (e: Throwable) {
-                CrashLog.save(ctx, "NOTIFY ERROR:\n" + android.util.Log.getStackTraceString(e))
-            }
+            var started = false
             try {
-                ctx.startActivity(Intent(ctx, AlarmActivity::class.java)
-                    .putExtra("code", code).putExtra("title", title).putExtra("msg", msg)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            } catch (e: Throwable) { }
-            val pending = goAsync()
-            Thread {
-                try { Beeper.pattern() } finally { pending.finish() }
-            }.start()
+                ctx.startForegroundService(Intent(ctx, AlarmService::class.java)
+                    .putExtra("code", code).putExtra("title", title).putExtra("msg", msg))
+                started = true
+            } catch (e: Throwable) {
+                CrashLog.save(ctx, "SERVICE START ERROR:\n" + android.util.Log.getStackTraceString(e))
+            }
+            if (!started) {
+                try { notify(ctx, code, title, msg) } catch (e: Throwable) { }
+                try {
+                    ctx.startActivity(Intent(ctx, AlarmActivity::class.java)
+                        .putExtra("code", code).putExtra("title", title).putExtra("msg", msg)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                } catch (e: Throwable) { }
+                val pending = goAsync()
+                Thread {
+                    try { Beeper.pattern() } finally { pending.finish() }
+                }.start()
+            }
             Scheduler.rescheduleAll(ctx)
         } catch (e: Throwable) {
             CrashLog.save(ctx, "RECEIVER ERROR:\n" + android.util.Log.getStackTraceString(e))
