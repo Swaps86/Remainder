@@ -72,10 +72,21 @@ object Scheduler {
     private fun set(ctx: Context, am: AlarmManager, s: Slot) {
         val show = PendingIntent.getActivity(ctx, 0, Intent(ctx, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE)
-        am.setAlarmClock(AlarmManager.AlarmClockInfo(s.at, show), pi(ctx, s.code, s))
+        try {
+            am.setAlarmClock(AlarmManager.AlarmClockInfo(s.at, show), pi(ctx, s.code, s))
+        } catch (e: Throwable) {
+            CrashLog.save(ctx, "ALARM SET ERROR:\n" + android.util.Log.getStackTraceString(e))
+            try { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, s.at, pi(ctx, s.code, s)) } catch (e2: Throwable) { }
+        }
     }
 
     fun rescheduleAll(ctx: Context) {
+        try { doReschedule(ctx) } catch (e: Throwable) {
+            CrashLog.save(ctx, "SCHEDULE ERROR:\n" + android.util.Log.getStackTraceString(e))
+        }
+    }
+
+    private fun doReschedule(ctx: Context) {
         val c = ctx.applicationContext
         val am = c.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val sp = c.getSharedPreferences("dr_codes", Context.MODE_PRIVATE)

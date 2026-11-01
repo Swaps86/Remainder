@@ -28,16 +28,22 @@ object Beeper {
 
 class AlarmReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, i: Intent) {
-        Store.init(ctx)
-        val code = i.getIntExtra("code", 0)
-        val title = i.getStringExtra("title") ?: "Reminder"
-        val msg = i.getStringExtra("msg") ?: ""
-        notify(ctx, code, title, msg)
-        val pending = goAsync()
-        Thread {
-            try { Beeper.pattern() } finally { pending.finish() }
-        }.start()
-        Scheduler.rescheduleAll(ctx)
+        try {
+            Store.init(ctx)
+            val code = i.getIntExtra("code", 0)
+            val title = i.getStringExtra("title") ?: "Reminder"
+            val msg = i.getStringExtra("msg") ?: ""
+            try { notify(ctx, code, title, msg) } catch (e: Throwable) {
+                CrashLog.save(ctx, "NOTIFY ERROR:\n" + android.util.Log.getStackTraceString(e))
+            }
+            val pending = goAsync()
+            Thread {
+                try { Beeper.pattern() } finally { pending.finish() }
+            }.start()
+            Scheduler.rescheduleAll(ctx)
+        } catch (e: Throwable) {
+            CrashLog.save(ctx, "RECEIVER ERROR:\n" + android.util.Log.getStackTraceString(e))
+        }
     }
 
     private fun notify(ctx: Context, code: Int, title: String, msg: String) {
