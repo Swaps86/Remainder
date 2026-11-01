@@ -1,0 +1,68 @@
+package com.swapnil.dailyreminder
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.media.AudioManager
+import android.media.ToneGenerator
+
+// "Beep Beep" ... pause ... "Beep Beep"  (two times)
+object Beeper {
+    fun pattern() {
+        try {
+            val tg = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+            repeat(2) {
+                tg.startTone(ToneGenerator.TONE_PROP_BEEP, 200); Thread.sleep(300)
+                tg.startTone(ToneGenerator.TONE_PROP_BEEP, 200); Thread.sleep(300)
+                Thread.sleep(500)
+            }
+            Thread.sleep(300)
+            tg.release()
+        } catch (e: Exception) { }
+    }
+}
+
+class AlarmReceiver : BroadcastReceiver() {
+    override fun onReceive(ctx: Context, i: Intent) {
+        Store.init(ctx)
+        val code = i.getIntExtra("code", 0)
+        val title = i.getStringExtra("title") ?: "Reminder"
+        val msg = i.getStringExtra("msg") ?: ""
+        notify(ctx, code, title, msg)
+        val pending = goAsync()
+        Thread {
+            try { Beeper.pattern() } finally { pending.finish() }
+        }.start()
+        Scheduler.rescheduleAll(ctx)
+    }
+
+    private fun notify(ctx: Context, code: Int, title: String, msg: String) {
+        val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val ch = NotificationChannel("alarm", "Alarms", NotificationManager.IMPORTANCE_HIGH)
+        ch.setSound(null, null)
+        nm.createNotificationChannel(ch)
+        val open = Intent(ctx, AlarmActivity::class.java)
+            .putExtra("code", code).putExtra("title", title).putExtra("msg", msg)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pi = PendingIntent.getActivity(ctx, code, open,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val n = Notification.Builder(ctx, "alarm")
+            .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+            .setContentTitle(title).setContentText(msg)
+            .setCategory(Notification.CATEGORY_ALARM)
+            .setContentIntent(pi).setFullScreenIntent(pi, true)
+            .setAutoCancel(true).build()
+        nm.notify(code, n)
+    }
+}
+
+class BootReceiver : BroadcastReceiver() {
+    override fun onReceive(ctx: Context, i: Intent) {
+        Store.init(ctx)
+        Scheduler.rescheduleAll(ctx)
+    }
+}
